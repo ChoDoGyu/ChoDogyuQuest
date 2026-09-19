@@ -1,0 +1,25 @@
+﻿{
+  "name": "CDG.Quest.Tests.Editor",
+  "rootNamespace": "CDG.Quest.Tests.Editor",
+  "references": [
+    "CDG.Quest",
+    "CDG.Quest.Editor",
+    "CDG.Core"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

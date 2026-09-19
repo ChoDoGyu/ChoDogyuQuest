@@ -1,0 +1,17 @@
+﻿{
+  "name": "com.chodogyu.quest",
+  "version": "1.0.0",
+  "displayName": "ChoDogyu Quest Framework & Editor",
+  "description": "게임 고유 시스템에 의존하지 않고 Quest 정의, Objective 진행 상태, 완료 판정, 선행 관계 및 반복 Quest 흐름을 관리할 수 있도록 지원하는 범용 Unity Quest Framework & Editor입니다.",
+  "unity": "6000.3",
+  "keywords": [
+    "quest",
+    "objective",
+    "mission",
+    "framework",
+    "editor"
+  ],
+  "author": {
+    "name": "ChoDogyu"
+  }
+}

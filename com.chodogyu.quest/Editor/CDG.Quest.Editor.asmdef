@@ -1,0 +1,19 @@
+﻿{
+  "name": "CDG.Quest.Editor",
+  "rootNamespace": "CDG.Quest.Editor",
+  "references": [
+    "CDG.Quest",
+    "CDG.Core"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

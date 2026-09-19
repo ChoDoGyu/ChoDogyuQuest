@@ -1,0 +1,16 @@
+﻿{
+  "name": "CDG.Quest",
+  "rootNamespace": "CDG.Quest",
+  "references": [
+    "CDG.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

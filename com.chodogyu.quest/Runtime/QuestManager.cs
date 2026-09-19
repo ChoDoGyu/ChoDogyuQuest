@@ -349,6 +349,25 @@ namespace CDG.Quest
             return Result.Success();
         }
 
+        /// <summary>
+        /// 현재 관리 중인 모든 Quest와 Objective의 Runtime 상태를 독립된 Snapshot으로 Capture합니다.
+        /// 반환된 데이터는 외부 저장 시스템에서 원하는 방식으로 직렬화할 수 있습니다.
+        /// </summary>
+        public QuestStateCollectionSnapshot CaptureState()
+        {
+            return QuestStateSnapshotProcessor.Capture(orderedDefinitions, statesById);
+        }
+
+        /// <summary>
+        /// 이전에 저장한 Quest 상태 Snapshot을 현재 QuestManager에 복원합니다.
+        /// Snapshot 전체를 먼저 검증한 후 적용하며 실패한 경우 기존 Runtime 상태는 변경하지 않습니다.
+        /// 복원 과정에서는 Quest 및 Objective Runtime 이벤트를 발생시키지 않습니다.
+        /// </summary>
+        public Result RestoreState(QuestStateCollectionSnapshot snapshot)
+        {
+            return QuestStateSnapshotProcessor.Restore(snapshot, orderedDefinitions, definitionsById, statesById);
+        }
+
         private Result<QuestRuntimeState> GetQuestStateInternal(string questId)
         {
             if (string.IsNullOrWhiteSpace(questId))

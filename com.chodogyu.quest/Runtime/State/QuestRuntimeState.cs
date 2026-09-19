@@ -114,5 +114,49 @@ namespace CDG.Quest
 
             Status = QuestStatus.Inactive;
         }
+
+        internal void Restore(QuestStatus status, int completionCount, IReadOnlyDictionary<string, int> objectiveProgressById)
+        {
+            if (!Enum.IsDefined(typeof(QuestStatus), status))
+            {
+                throw new ArgumentOutOfRangeException(nameof(status));
+            }
+
+            if (completionCount < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(completionCount));
+            }
+
+            if (objectiveProgressById == null)
+            {
+                throw new ArgumentNullException(nameof(objectiveProgressById));
+            }
+
+            if (objectiveProgressById.Count != objectiveStates.Count)
+            {
+                throw new ArgumentException("복원할 Objective 상태 수가 Runtime 상태와 일치하지 않습니다.", nameof(objectiveProgressById));
+            }
+
+            foreach (KeyValuePair<string, ObjectiveRuntimeState> pair in objectiveStates)
+            {
+                if (!objectiveProgressById.TryGetValue(pair.Key, out int progress))
+                {
+                    throw new ArgumentException($"복원할 Objective 상태를 찾을 수 없습니다: '{pair.Key}'", nameof(objectiveProgressById));
+                }
+
+                if (progress < 0 || progress > pair.Value.TargetProgress)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(objectiveProgressById), $"Objective 진행도가 허용 범위를 벗어났습니다: '{pair.Key}'");
+                }
+            }
+
+            foreach (KeyValuePair<string, ObjectiveRuntimeState> pair in objectiveStates)
+            {
+                pair.Value.SetProgress(objectiveProgressById[pair.Key]);
+            }
+
+            Status = status;
+            CompletionCount = completionCount;
+        }
     }
 }

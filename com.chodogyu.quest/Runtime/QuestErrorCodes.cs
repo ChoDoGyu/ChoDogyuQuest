@@ -70,5 +70,15 @@
         /// 반복 가능하지 않은 Quest에 Reset을 요청한 경우 사용합니다.
         /// </summary>
         public const string QuestNotRepeatable = "QUEST_NOT_REPEATABLE";
+
+        /// <summary>
+        /// RestoreState에 null Snapshot이 전달된 경우 사용합니다.
+        /// </summary>
+        public const string StateSnapshotRequired = "QUEST_STATE_SNAPSHOT_REQUIRED";
+
+        /// <summary>
+        /// 현재 Quest Definition과 일치하지 않거나 논리적으로 유효하지 않은 Snapshot을 복원하려 한 경우 사용합니다.
+        /// </summary>
+        public const string InvalidStateSnapshot = "QUEST_INVALID_STATE_SNAPSHOT";
     }
 }

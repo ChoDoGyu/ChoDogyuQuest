@@ -5,7 +5,7 @@ namespace CDG.Quest.Editor
 {
     /// <summary>
     /// QuestCatalog에 정의된 Quest를 탐색하고 관리하기 위한 Quest Framework 전용 EditorWindow입니다.
-    /// Quest 목록과 선택한 Quest 정보를 분리된 패널로 표시하며 이후 편집, 검증 및 관계 탐색 기능의 진입점으로 사용됩니다.
+    /// Quest 목록과 선택한 Quest 정보를 분리된 패널로 표시하며 Definition 편집 기능의 진입점으로 사용됩니다.
     /// </summary>
     internal sealed class QuestEditorWindow : EditorWindow
     {
@@ -19,6 +19,7 @@ namespace CDG.Quest.Editor
         [SerializeField]
         private int selectedQuestIndex = -1;
 
+        private QuestCatalogEditorSession editorSession;
         private Vector2 leftScrollPosition;
         private Vector2 rightScrollPosition;
 
@@ -39,17 +40,30 @@ namespace CDG.Quest.Editor
         private void OnEnable()
         {
             ConfigureWindow();
+            RestoreEditorSession();
+
+            Undo.undoRedoPerformed -= OnUndoRedo;
+            Undo.undoRedoPerformed += OnUndoRedo;
+
             EnsureSelection();
+        }
+
+        private void OnDisable()
+        {
+            Undo.undoRedoPerformed -= OnUndoRedo;
         }
 
         private void OnProjectChange()
         {
+            RestoreEditorSession();
             EnsureSelection();
             Repaint();
         }
 
         private void OnGUI()
         {
+            EnsureEditorSession();
+            editorSession?.Update();
             EnsureSelection();
 
             DrawHeader();
@@ -60,13 +74,18 @@ namespace CDG.Quest.Editor
 
             EditorGUILayout.Space(8f);
 
-            if (catalog == null)
+            if (catalog == null || editorSession == null)
             {
                 EditorGUILayout.HelpBox("편집할 QuestCatalog을 선택하세요.", MessageType.Info);
                 return;
             }
 
             DrawMainContent();
+
+            if (editorSession.ApplyModifiedProperties())
+            {
+                Repaint();
+            }
         }
 
         private void ConfigureWindow()
@@ -103,14 +122,33 @@ namespace CDG.Quest.Editor
                 GUI.FocusControl(null);
             }
 
-            if (catalog == null)
+            if (catalog == null || editorSession == null)
             {
                 return;
             }
 
+            EditorGUILayout.BeginHorizontal();
+
             EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.IntField("Quest Count", catalog.Count);
+            EditorGUILayout.IntField("Quest Count", editorSession.QuestCount);
             EditorGUI.EndDisabledGroup();
+
+            GUILayout.FlexibleSpace();
+
+            string stateText = editorSession.IsDirty ? "Unsaved Changes" : "Saved";
+            EditorGUILayout.LabelField(stateText, GUILayout.Width(110f));
+
+            EditorGUI.BeginDisabledGroup(!editorSession.IsDirty);
+
+            if (GUILayout.Button("Save Catalog", GUILayout.Width(100f)))
+            {
+                editorSession.Save();
+                GUI.FocusControl(null);
+            }
+
+            EditorGUI.EndDisabledGroup();
+
+            EditorGUILayout.EndHorizontal();
         }
 
         private void DrawMainContent()
@@ -135,7 +173,7 @@ namespace CDG.Quest.Editor
 
             leftScrollPosition = EditorGUILayout.BeginScrollView(leftScrollPosition);
 
-            if (catalog.Count == 0)
+            if (editorSession.QuestCount == 0)
             {
                 EditorGUILayout.HelpBox("Catalog에 등록된 Quest가 없습니다.", MessageType.Info);
             }
@@ -145,6 +183,22 @@ namespace CDG.Quest.Editor
             }
 
             EditorGUILayout.EndScrollView();
+
+            EditorGUILayout.Space(4f);
+
+            if (GUILayout.Button("Add Quest", GUILayout.Height(26f)))
+            {
+                AddQuest();
+            }
+
+            EditorGUI.BeginDisabledGroup(selectedQuestIndex < 0 || selectedQuestIndex >= editorSession.QuestCount);
+
+            if (GUILayout.Button("Delete Quest", GUILayout.Height(24f)))
+            {
+                DeleteSelectedQuest();
+            }
+
+            EditorGUI.EndDisabledGroup();
 
             EditorGUILayout.EndVertical();
         }
@@ -157,15 +211,16 @@ namespace CDG.Quest.Editor
                 wordWrap = true
             };
 
-            for (int questIndex = 0; questIndex < catalog.Quests.Count; questIndex++)
+            for (int questIndex = 0; questIndex < editorSession.QuestCount; questIndex++)
             {
-                QuestDefinition quest = catalog.Quests[questIndex];
+                SerializedProperty questProperty = editorSession.GetQuestProperty(questIndex);
                 bool isSelected = questIndex == selectedQuestIndex;
-                string label = CreateQuestListLabel(quest, questIndex, isSelected);
+                string label = CreateQuestListLabel(questProperty, questIndex, isSelected);
 
                 if (GUILayout.Button(label, buttonStyle, GUILayout.MinHeight(32f)))
                 {
                     selectedQuestIndex = questIndex;
+                    rightScrollPosition = Vector2.zero;
                     GUI.FocusControl(null);
                 }
             }
@@ -180,17 +235,15 @@ namespace CDG.Quest.Editor
 
             rightScrollPosition = EditorGUILayout.BeginScrollView(rightScrollPosition);
 
-            if (!TryGetSelectedQuest(out QuestDefinition quest))
+            SerializedProperty questProperty = editorSession.GetQuestProperty(selectedQuestIndex);
+
+            if (questProperty == null)
             {
                 EditorGUILayout.HelpBox("왼쪽 목록에서 Quest를 선택하세요.", MessageType.Info);
             }
-            else if (quest == null)
-            {
-                EditorGUILayout.HelpBox("선택한 Quest 항목이 null입니다.", MessageType.Error);
-            }
             else
             {
-                DrawSelectedQuest(quest);
+                DrawSelectedQuest(questProperty);
             }
 
             EditorGUILayout.EndScrollView();
@@ -198,24 +251,88 @@ namespace CDG.Quest.Editor
             EditorGUILayout.EndVertical();
         }
 
-        private static void DrawSelectedQuest(QuestDefinition quest)
+        private static void DrawSelectedQuest(SerializedProperty questProperty)
         {
-            EditorGUI.BeginDisabledGroup(true);
+            SerializedProperty idProperty = questProperty.FindPropertyRelative("id");
+            SerializedProperty titleProperty = questProperty.FindPropertyRelative("title");
+            SerializedProperty descriptionProperty = questProperty.FindPropertyRelative("description");
+            SerializedProperty objectivesProperty = questProperty.FindPropertyRelative("objectives");
+            SerializedProperty prerequisitesProperty = questProperty.FindPropertyRelative("prerequisiteQuestIds");
+            SerializedProperty rewardsProperty = questProperty.FindPropertyRelative("rewards");
+            SerializedProperty repeatableProperty = questProperty.FindPropertyRelative("isRepeatable");
 
-            EditorGUILayout.TextField("ID", quest.Id);
-            EditorGUILayout.TextField("Title", quest.Title);
+            EditorGUILayout.PropertyField(idProperty, new GUIContent("ID"));
+            EditorGUILayout.PropertyField(titleProperty, new GUIContent("Title"));
 
             EditorGUILayout.LabelField("Description");
-            EditorGUILayout.TextArea(quest.Description ?? string.Empty, GUILayout.MinHeight(70f));
+            descriptionProperty.stringValue = EditorGUILayout.TextArea(descriptionProperty.stringValue, GUILayout.MinHeight(80f));
 
-            EditorGUILayout.Space(6f);
+            EditorGUILayout.Space(8f);
 
-            EditorGUILayout.IntField("Objectives", quest.Objectives.Count);
-            EditorGUILayout.IntField("Prerequisites", quest.PrerequisiteQuestIds.Count);
-            EditorGUILayout.IntField("Rewards", quest.Rewards.Count);
-            EditorGUILayout.Toggle("Repeatable", quest.IsRepeatable);
+            EditorGUILayout.PropertyField(repeatableProperty, new GUIContent("Repeatable"));
+
+            EditorGUILayout.Space(8f);
+
+            EditorGUI.BeginDisabledGroup(true);
+
+            EditorGUILayout.IntField("Objectives", objectivesProperty.arraySize);
+            EditorGUILayout.IntField("Prerequisites", prerequisitesProperty.arraySize);
+            EditorGUILayout.IntField("Rewards", rewardsProperty.arraySize);
 
             EditorGUI.EndDisabledGroup();
+
+            EditorGUILayout.Space(8f);
+
+            EditorGUILayout.HelpBox(
+                "Objective, Prerequisite, Reward 편집은 다음 Stage에서 추가됩니다.",
+                MessageType.Info);
+        }
+
+        private void AddQuest()
+        {
+            int newIndex = editorSession.AddQuest();
+
+            if (newIndex < 0)
+            {
+                return;
+            }
+
+            selectedQuestIndex = newIndex;
+            leftScrollPosition = Vector2.zero;
+            rightScrollPosition = Vector2.zero;
+
+            GUI.FocusControl(null);
+            Repaint();
+        }
+
+        private void DeleteSelectedQuest()
+        {
+            SerializedProperty selectedQuest = editorSession.GetQuestProperty(selectedQuestIndex);
+
+            if (selectedQuest == null)
+            {
+                return;
+            }
+
+            SerializedProperty idProperty = selectedQuest.FindPropertyRelative("id");
+            string questId = string.IsNullOrWhiteSpace(idProperty.stringValue) ? "(No ID)" : idProperty.stringValue;
+
+            bool confirmed = EditorUtility.DisplayDialog(
+                "Delete Quest",
+                $"Quest '{questId}'를 삭제하시겠습니까?\n\n이 작업은 Unity Undo로 되돌릴 수 있습니다.",
+                "Delete",
+                "Cancel");
+
+            if (!confirmed)
+            {
+                return;
+            }
+
+            selectedQuestIndex = editorSession.DeleteQuest(selectedQuestIndex);
+            rightScrollPosition = Vector2.zero;
+
+            GUI.FocusControl(null);
+            Repaint();
         }
 
         private void UseCurrentSelection()
@@ -233,10 +350,12 @@ namespace CDG.Quest.Editor
         private void ChangeCatalog(QuestCatalog newCatalog)
         {
             catalog = newCatalog;
+            editorSession = catalog != null ? new QuestCatalogEditorSession(catalog) : null;
+
             leftScrollPosition = Vector2.zero;
             rightScrollPosition = Vector2.zero;
 
-            if (catalog == null || catalog.Count == 0)
+            if (editorSession == null || editorSession.QuestCount == 0)
             {
                 selectedQuestIndex = -1;
                 return;
@@ -245,44 +364,60 @@ namespace CDG.Quest.Editor
             selectedQuestIndex = 0;
         }
 
+        private void RestoreEditorSession()
+        {
+            editorSession = catalog != null ? new QuestCatalogEditorSession(catalog) : null;
+        }
+
+        private void EnsureEditorSession()
+        {
+            if (catalog == null)
+            {
+                editorSession = null;
+                return;
+            }
+
+            if (editorSession == null || editorSession.Catalog != catalog)
+            {
+                editorSession = new QuestCatalogEditorSession(catalog);
+            }
+        }
+
         private void EnsureSelection()
         {
-            if (catalog == null || catalog.Count == 0)
+            if (editorSession == null || editorSession.QuestCount == 0)
             {
                 selectedQuestIndex = -1;
                 return;
             }
 
-            if (selectedQuestIndex < 0 || selectedQuestIndex >= catalog.Count)
+            if (selectedQuestIndex < 0 || selectedQuestIndex >= editorSession.QuestCount)
             {
                 selectedQuestIndex = 0;
             }
         }
 
-        private bool TryGetSelectedQuest(out QuestDefinition quest)
+        private void OnUndoRedo()
         {
-            quest = null;
-
-            if (catalog == null || selectedQuestIndex < 0 || selectedQuestIndex >= catalog.Count)
-            {
-                return false;
-            }
-
-            quest = catalog.Quests[selectedQuestIndex];
-            return true;
+            editorSession?.Update();
+            EnsureSelection();
+            Repaint();
         }
 
-        private static string CreateQuestListLabel(QuestDefinition quest, int questIndex, bool isSelected)
+        private static string CreateQuestListLabel(SerializedProperty questProperty, int questIndex, bool isSelected)
         {
             string prefix = isSelected ? "▶ " : string.Empty;
 
-            if (quest == null)
+            if (questProperty == null)
             {
-                return $"{prefix}{questIndex + 1}. (Null Quest)";
+                return $"{prefix}{questIndex + 1}. (Invalid Quest)";
             }
 
-            string id = string.IsNullOrWhiteSpace(quest.Id) ? "(No ID)" : quest.Id;
-            string title = string.IsNullOrWhiteSpace(quest.Title) ? "(No Title)" : quest.Title;
+            SerializedProperty idProperty = questProperty.FindPropertyRelative("id");
+            SerializedProperty titleProperty = questProperty.FindPropertyRelative("title");
+
+            string id = string.IsNullOrWhiteSpace(idProperty.stringValue) ? "(No ID)" : idProperty.stringValue;
+            string title = string.IsNullOrWhiteSpace(titleProperty.stringValue) ? "(No Title)" : titleProperty.stringValue;
 
             return $"{prefix}{id}\n{title}";
         }

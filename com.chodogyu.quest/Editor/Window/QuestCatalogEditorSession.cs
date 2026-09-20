@@ -117,7 +117,6 @@ namespace CDG.Quest.Editor
 
         /// <summary>
         /// 지정한 Quest의 ID를 반환합니다.
-        /// 유효한 Quest를 찾지 못하면 빈 문자열을 반환합니다.
         /// </summary>
         internal string GetQuestId(int questIndex)
         {
@@ -133,24 +132,114 @@ namespace CDG.Quest.Editor
         }
 
         /// <summary>
+        /// 지정한 Quest의 Title을 반환합니다.
+        /// </summary>
+        internal string GetQuestTitle(int questIndex)
+        {
+            SerializedProperty questProperty = GetQuestProperty(questIndex);
+
+            if (questProperty == null)
+            {
+                return string.Empty;
+            }
+
+            SerializedProperty titleProperty = questProperty.FindPropertyRelative(QuestTitlePropertyName);
+            return titleProperty?.stringValue ?? string.Empty;
+        }
+
+        /// <summary>
         /// 지정한 ID를 가진 Quest가 현재 Catalog에 존재하는지 확인합니다.
         /// </summary>
         internal bool ContainsQuestId(string questId)
         {
+            return FindQuestIndexById(questId) >= 0;
+        }
+
+        /// <summary>
+        /// 지정한 ID와 일치하는 첫 번째 Quest의 인덱스를 반환합니다.
+        /// 찾지 못하면 -1을 반환합니다.
+        /// </summary>
+        internal int FindQuestIndexById(string questId)
+        {
             if (questsProperty == null || string.IsNullOrWhiteSpace(questId))
             {
-                return false;
+                return -1;
             }
 
             for (int i = 0; i < questsProperty.arraySize; i++)
             {
                 if (string.Equals(GetQuestId(i), questId, StringComparison.Ordinal))
                 {
-                    return true;
+                    return i;
                 }
             }
 
-            return false;
+            return -1;
+        }
+
+        /// <summary>
+        /// 지정한 Quest가 직접 참조하는 선행 Quest ID 목록을 반환합니다.
+        /// </summary>
+        internal string[] GetPrerequisiteIds(int questIndex)
+        {
+            SerializedProperty prerequisitesProperty = GetChildArrayProperty(questIndex, PrerequisitesPropertyName);
+
+            if (prerequisitesProperty == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            string[] result = new string[prerequisitesProperty.arraySize];
+
+            for (int i = 0; i < prerequisitesProperty.arraySize; i++)
+            {
+                result[i] = prerequisitesProperty.GetArrayElementAtIndex(i).stringValue ?? string.Empty;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// 지정한 Quest를 선행 Quest로 참조하는 다른 Quest들의 인덱스를 반환합니다.
+        /// </summary>
+        internal int[] GetDependentQuestIndices(int questIndex)
+        {
+            string questId = GetQuestId(questIndex);
+
+            if (string.IsNullOrWhiteSpace(questId))
+            {
+                return Array.Empty<int>();
+            }
+
+            List<int> dependentIndices = new List<int>();
+
+            for (int i = 0; i < QuestCount; i++)
+            {
+                if (i == questIndex)
+                {
+                    continue;
+                }
+
+                SerializedProperty prerequisitesProperty = GetChildArrayProperty(i, PrerequisitesPropertyName);
+
+                if (prerequisitesProperty == null)
+                {
+                    continue;
+                }
+
+                for (int prerequisiteIndex = 0; prerequisiteIndex < prerequisitesProperty.arraySize; prerequisiteIndex++)
+                {
+                    string prerequisiteId = prerequisitesProperty.GetArrayElementAtIndex(prerequisiteIndex).stringValue;
+
+                    if (string.Equals(prerequisiteId, questId, StringComparison.Ordinal))
+                    {
+                        dependentIndices.Add(i);
+                        break;
+                    }
+                }
+            }
+
+            return dependentIndices.ToArray();
         }
 
         /// <summary>
@@ -345,8 +434,10 @@ namespace CDG.Quest.Editor
             string currentValue = prerequisitesProperty.GetArrayElementAtIndex(prerequisiteIndex).stringValue ?? string.Empty;
             string currentQuestId = GetQuestId(questIndex);
 
-            List<string> options = new List<string>();
-            options.Add(currentValue);
+            List<string> options = new List<string>
+            {
+                currentValue
+            };
 
             for (int i = 0; i < QuestCount; i++)
             {

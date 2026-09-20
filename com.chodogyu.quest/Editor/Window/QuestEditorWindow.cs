@@ -5,7 +5,7 @@ namespace CDG.Quest.Editor
 {
     /// <summary>
     /// QuestCatalog에 정의된 Quest를 탐색하고 관리하기 위한 Quest Framework 전용 EditorWindow입니다.
-    /// Quest 목록과 선택한 Quest 정보를 분리된 패널로 표시하며 Definition 편집 기능의 진입점으로 사용됩니다.
+    /// Quest 목록과 선택한 Quest를 분리된 패널로 제공하며 세부 편집은 전용 Definition GUI에 위임합니다.
     /// </summary>
     internal sealed class QuestEditorWindow : EditorWindow
     {
@@ -91,13 +91,15 @@ namespace CDG.Quest.Editor
         private void ConfigureWindow()
         {
             titleContent = new GUIContent(WindowTitle);
-            minSize = new Vector2(760f, 460f);
+            minSize = new Vector2(820f, 520f);
         }
 
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("ChoDogyu Quest Framework & Editor", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("QuestCatalog에 정의된 Quest를 탐색하고 관리합니다.", EditorStyles.wordWrappedLabel);
+            EditorGUILayout.LabelField(
+                "Quest Definition, Objective, 선행 관계 및 Reward 메타데이터를 하나의 Catalog에서 관리합니다.",
+                EditorStyles.wordWrappedLabel);
         }
 
         private void DrawCatalogSection()
@@ -106,7 +108,11 @@ namespace CDG.Quest.Editor
 
             EditorGUILayout.BeginHorizontal();
 
-            QuestCatalog newCatalog = (QuestCatalog)EditorGUILayout.ObjectField("Quest Catalog", catalog, typeof(QuestCatalog), false);
+            QuestCatalog newCatalog = (QuestCatalog)EditorGUILayout.ObjectField(
+                "Quest Catalog",
+                catalog,
+                typeof(QuestCatalog),
+                false);
 
             if (GUILayout.Button("Use Selection", GUILayout.Width(100f)))
             {
@@ -144,6 +150,7 @@ namespace CDG.Quest.Editor
             {
                 editorSession.Save();
                 GUI.FocusControl(null);
+                Repaint();
             }
 
             EditorGUI.EndDisabledGroup();
@@ -166,7 +173,10 @@ namespace CDG.Quest.Editor
 
         private void DrawQuestListPanel()
         {
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(LeftPanelWidth), GUILayout.ExpandHeight(true));
+            EditorGUILayout.BeginVertical(
+                EditorStyles.helpBox,
+                GUILayout.Width(LeftPanelWidth),
+                GUILayout.ExpandHeight(true));
 
             EditorGUILayout.LabelField("Quests", EditorStyles.boldLabel);
             EditorGUILayout.Space(4f);
@@ -191,7 +201,9 @@ namespace CDG.Quest.Editor
                 AddQuest();
             }
 
-            EditorGUI.BeginDisabledGroup(selectedQuestIndex < 0 || selectedQuestIndex >= editorSession.QuestCount);
+            EditorGUI.BeginDisabledGroup(
+                selectedQuestIndex < 0 ||
+                selectedQuestIndex >= editorSession.QuestCount);
 
             if (GUILayout.Button("Delete Quest", GUILayout.Height(24f)))
             {
@@ -228,64 +240,28 @@ namespace CDG.Quest.Editor
 
         private void DrawQuestDetailsPanel()
         {
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+            EditorGUILayout.BeginVertical(
+                EditorStyles.helpBox,
+                GUILayout.ExpandWidth(true),
+                GUILayout.ExpandHeight(true));
 
             EditorGUILayout.LabelField("Quest Details", EditorStyles.boldLabel);
             EditorGUILayout.Space(4f);
 
             rightScrollPosition = EditorGUILayout.BeginScrollView(rightScrollPosition);
 
-            SerializedProperty questProperty = editorSession.GetQuestProperty(selectedQuestIndex);
-
-            if (questProperty == null)
+            if (editorSession.GetQuestProperty(selectedQuestIndex) == null)
             {
                 EditorGUILayout.HelpBox("왼쪽 목록에서 Quest를 선택하세요.", MessageType.Info);
             }
             else
             {
-                DrawSelectedQuest(questProperty);
+                QuestDefinitionEditorGUI.Draw(editorSession, selectedQuestIndex);
             }
 
             EditorGUILayout.EndScrollView();
 
             EditorGUILayout.EndVertical();
-        }
-
-        private static void DrawSelectedQuest(SerializedProperty questProperty)
-        {
-            SerializedProperty idProperty = questProperty.FindPropertyRelative("id");
-            SerializedProperty titleProperty = questProperty.FindPropertyRelative("title");
-            SerializedProperty descriptionProperty = questProperty.FindPropertyRelative("description");
-            SerializedProperty objectivesProperty = questProperty.FindPropertyRelative("objectives");
-            SerializedProperty prerequisitesProperty = questProperty.FindPropertyRelative("prerequisiteQuestIds");
-            SerializedProperty rewardsProperty = questProperty.FindPropertyRelative("rewards");
-            SerializedProperty repeatableProperty = questProperty.FindPropertyRelative("isRepeatable");
-
-            EditorGUILayout.PropertyField(idProperty, new GUIContent("ID"));
-            EditorGUILayout.PropertyField(titleProperty, new GUIContent("Title"));
-
-            EditorGUILayout.LabelField("Description");
-            descriptionProperty.stringValue = EditorGUILayout.TextArea(descriptionProperty.stringValue, GUILayout.MinHeight(80f));
-
-            EditorGUILayout.Space(8f);
-
-            EditorGUILayout.PropertyField(repeatableProperty, new GUIContent("Repeatable"));
-
-            EditorGUILayout.Space(8f);
-
-            EditorGUI.BeginDisabledGroup(true);
-
-            EditorGUILayout.IntField("Objectives", objectivesProperty.arraySize);
-            EditorGUILayout.IntField("Prerequisites", prerequisitesProperty.arraySize);
-            EditorGUILayout.IntField("Rewards", rewardsProperty.arraySize);
-
-            EditorGUI.EndDisabledGroup();
-
-            EditorGUILayout.Space(8f);
-
-            EditorGUILayout.HelpBox(
-                "Objective, Prerequisite, Reward 편집은 다음 Stage에서 추가됩니다.",
-                MessageType.Info);
         }
 
         private void AddQuest()
@@ -315,7 +291,9 @@ namespace CDG.Quest.Editor
             }
 
             SerializedProperty idProperty = selectedQuest.FindPropertyRelative("id");
-            string questId = string.IsNullOrWhiteSpace(idProperty.stringValue) ? "(No ID)" : idProperty.stringValue;
+            string questId = string.IsNullOrWhiteSpace(idProperty.stringValue)
+                ? "(No ID)"
+                : idProperty.stringValue;
 
             bool confirmed = EditorUtility.DisplayDialog(
                 "Delete Quest",
@@ -339,7 +317,11 @@ namespace CDG.Quest.Editor
         {
             if (Selection.activeObject is not QuestCatalog selectedCatalog)
             {
-                EditorUtility.DisplayDialog("Quest Editor", "현재 선택된 Asset이 QuestCatalog가 아닙니다.", "확인");
+                EditorUtility.DisplayDialog(
+                    "Quest Editor",
+                    "현재 선택된 Asset이 QuestCatalog가 아닙니다.",
+                    "확인");
+
                 return;
             }
 
@@ -350,7 +332,9 @@ namespace CDG.Quest.Editor
         private void ChangeCatalog(QuestCatalog newCatalog)
         {
             catalog = newCatalog;
-            editorSession = catalog != null ? new QuestCatalogEditorSession(catalog) : null;
+            editorSession = catalog != null
+                ? new QuestCatalogEditorSession(catalog)
+                : null;
 
             leftScrollPosition = Vector2.zero;
             rightScrollPosition = Vector2.zero;
@@ -366,7 +350,9 @@ namespace CDG.Quest.Editor
 
         private void RestoreEditorSession()
         {
-            editorSession = catalog != null ? new QuestCatalogEditorSession(catalog) : null;
+            editorSession = catalog != null
+                ? new QuestCatalogEditorSession(catalog)
+                : null;
         }
 
         private void EnsureEditorSession()
@@ -404,7 +390,10 @@ namespace CDG.Quest.Editor
             Repaint();
         }
 
-        private static string CreateQuestListLabel(SerializedProperty questProperty, int questIndex, bool isSelected)
+        private static string CreateQuestListLabel(
+            SerializedProperty questProperty,
+            int questIndex,
+            bool isSelected)
         {
             string prefix = isSelected ? "▶ " : string.Empty;
 
@@ -416,8 +405,13 @@ namespace CDG.Quest.Editor
             SerializedProperty idProperty = questProperty.FindPropertyRelative("id");
             SerializedProperty titleProperty = questProperty.FindPropertyRelative("title");
 
-            string id = string.IsNullOrWhiteSpace(idProperty.stringValue) ? "(No ID)" : idProperty.stringValue;
-            string title = string.IsNullOrWhiteSpace(titleProperty.stringValue) ? "(No Title)" : titleProperty.stringValue;
+            string id = string.IsNullOrWhiteSpace(idProperty.stringValue)
+                ? "(No ID)"
+                : idProperty.stringValue;
+
+            string title = string.IsNullOrWhiteSpace(titleProperty.stringValue)
+                ? "(No Title)"
+                : titleProperty.stringValue;
 
             return $"{prefix}{id}\n{title}";
         }

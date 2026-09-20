@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d9be71498a46b6489a3471ad7547e33, type: 3}
+  m_Name: QuestCatalog
+  m_EditorClassIdentifier: CDG.Quest::CDG.Quest.QuestCatalog
+  quests:
+  - id: quest_001
+    title: First Quest
+    description: "\uCCAB \uBC88\uC9F8 Quest"
+    objectives: []
+    prerequisiteQuestIds: []
+    rewards: []
+    isRepeatable: 0
+  - id: quest_002
+    title: Second Quest
+    description: "\uB450 \uBC88\uC9F8 Quest"
+    objectives: []
+    prerequisiteQuestIds: []
+    rewards: []
+    isRepeatable: 1
